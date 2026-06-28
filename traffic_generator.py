@@ -11,11 +11,41 @@ DEFAULT_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080")
 AUTH_HEADER_NAME = os.getenv("AUTH_HEADER_NAME", "X-Demo-Authenticated")
 AUTH_HEADER_VALUE = os.getenv("AUTH_HEADER_VALUE", "f5-poc-secret")
 
-ENDPOINTS = [
-    ("GET", "/api/accounts", None),
-    ("GET", "/api/orders", None),
-    ("GET", "/api/profile", None),
-    ("POST", "/api/payments", {"accountId": "acct-1001", "amount": 42.5}),
+REQUESTS = [
+    ("GET", "/api/v1/customers?status=active&region=emea", None),
+    ("GET", "/api/v1/customers/cust-1001", None),
+    ("GET", "/api/v1/customers/cust-1001/orders?limit=10", None),
+    ("GET", "/api/v1/orders/ord-7001", None),
+    ("GET", "/api/v1/invoices?customerId=cust-1001&status=open", None),
+    (
+        "POST",
+        "/api/v1/orders",
+        {
+            "customerId": "cust-1001",
+            "items": [
+                {"sku": "router-100", "quantity": 2},
+                {"sku": "support-basic", "quantity": 1},
+            ],
+        },
+    ),
+    (
+        "PUT",
+        "/api/v1/orders/ord-7002",
+        {
+            "status": "processing",
+            "shippingAddress": {
+                "line1": "100 Market Street",
+                "city": "London",
+                "country": "GB",
+            },
+        },
+    ),
+    (
+        "POST",
+        "/api/v1/payments",
+        {"invoiceId": "inv-3001", "amount": 245.9, "currency": "USD"},
+    ),
+    ("DELETE", "/api/v1/sessions/sess-abc123", None),
 ]
 
 _invalid_header_modes = itertools.cycle(["missing", "wrong"])
@@ -26,13 +56,19 @@ def choose_auth_mode(sample, success_rate):
 
 
 def build_request_headers(auth_mode, secret):
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "custom-api-auth-traffic-generator/1.0",
+    }
+
     if auth_mode == "valid":
-        return {AUTH_HEADER_NAME: secret}
+        headers[AUTH_HEADER_NAME] = secret
+        return headers
 
     invalid_mode = next(_invalid_header_modes)
     if invalid_mode == "wrong":
-        return {AUTH_HEADER_NAME: f"invalid-{secret}"}
-    return {}
+        headers[AUTH_HEADER_NAME] = f"invalid-{secret}"
+    return headers
 
 
 def send_request(base_url, method, path, body, auth_mode, timeout):
@@ -72,7 +108,7 @@ def send_request(base_url, method, path, body, auth_mode, timeout):
 def run_traffic(base_url, success_rate, total_requests, interval_seconds, timeout):
     sent = 0
     while total_requests == 0 or sent < total_requests:
-        method, path, body = random.choice(ENDPOINTS)
+        method, path, body = random.choice(REQUESTS)
         auth_mode = choose_auth_mode(random.random(), success_rate)
         result = send_request(base_url, method, path, body, auth_mode, timeout)
         print(json.dumps(result), flush=True)
@@ -82,7 +118,7 @@ def run_traffic(base_url, success_rate, total_requests, interval_seconds, timeou
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Generate mixed 200 and 401 traffic for the custom-auth demo API."
+        description="Generate mixed 2xx and 401 traffic for the custom-auth demo API."
     )
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument(

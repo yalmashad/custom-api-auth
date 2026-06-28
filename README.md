@@ -24,10 +24,15 @@ Behavior:
 Authenticated endpoints:
 
 ```text
-GET  /api/accounts
-GET  /api/orders
-GET  /api/profile
-POST /api/payments
+GET    /api/v1/customers?status=active&region=emea
+GET    /api/v1/customers/{customerId}
+GET    /api/v1/customers/{customerId}/orders
+GET    /api/v1/orders/{orderId}
+POST   /api/v1/orders
+PUT    /api/v1/orders/{orderId}
+GET    /api/v1/invoices?customerId={customerId}&status=open
+POST   /api/v1/payments
+DELETE /api/v1/sessions/{sessionId}
 ```
 
 Health endpoint:
@@ -54,20 +59,20 @@ Successful request:
 
 ```bash
 curl -i -H "X-Demo-Authenticated: f5-poc-secret" \
-  http://localhost:8080/api/accounts
+  http://localhost:8080/api/v1/customers/cust-1001
 ```
 
 Failed request:
 
 ```bash
-curl -i http://localhost:8080/api/accounts
+curl -i http://localhost:8080/api/v1/customers/cust-1001
 ```
 
 Failed request with wrong value:
 
 ```bash
 curl -i -H "X-Demo-Authenticated: wrong-value" \
-  http://localhost:8080/api/accounts
+  http://localhost:8080/api/v1/customers/cust-1001
 ```
 
 ## Traffic Generator
