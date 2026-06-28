@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY demo_api ./demo_api
+
+ENV API_HOST=0.0.0.0
+ENV API_PORT=8080
+
+EXPOSE 8080
+
+CMD ["python", "-m", "demo_api.server"]
