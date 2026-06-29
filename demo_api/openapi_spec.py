@@ -9,8 +9,8 @@ OPENAPI_DOCUMENT = {
         ),
     },
     "servers": [
-        {"url": "http://localhost:8080", "description": "Local Docker Compose"},
         {"url": "http://api.adn.f5demo.io", "description": "Published API endpoint"},
+        {"url": "http://localhost:8080", "description": "Local Docker Compose"},
     ],
     "tags": [
         {"name": "Customers"},
