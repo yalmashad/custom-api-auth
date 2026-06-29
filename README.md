@@ -3,14 +3,21 @@
 This repository contains:
 
 - A small API service that uses a custom header for authentication
+- A couple of API endpoints that use standard JWT bearer authentication
 - A standalone Python traffic generator that sends mixed successful and failed requests
 
 ## Authentication
 
-The API expects this header:
+Most endpoints expect this custom header:
 
 ```text
 X-Demo-Authenticated: f5-poc-secret
+```
+
+The JWT endpoints expect this standard header:
+
+```text
+Authorization: Bearer <jwt>
 ```
 
 Behavior:
@@ -33,6 +40,13 @@ PUT    /api/v1/orders/{orderId}
 GET    /api/v1/invoices?customerId={customerId}&status=open
 POST   /api/v1/payments
 DELETE /api/v1/sessions/{sessionId}
+```
+
+JWT-authenticated endpoints:
+
+```text
+GET /api/v1/reports/sales-summary?period=last-30-days
+GET /api/v1/security/audit-events?severity=high
 ```
 
 Health endpoint:
@@ -98,3 +112,5 @@ python3 traffic_generator.py \
 ```
 
 Use `--total-requests 0` to run continuously.
+
+The traffic generator sends both custom-header and JWT bearer traffic.

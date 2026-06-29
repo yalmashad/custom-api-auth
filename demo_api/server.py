@@ -1,11 +1,17 @@
+import base64
+import hashlib
+import hmac
 import json
 import os
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
 AUTH_HEADER_NAME = os.getenv("AUTH_HEADER_NAME", "X-Demo-Authenticated")
 AUTH_HEADER_VALUE = os.getenv("AUTH_HEADER_VALUE", "f5-poc-secret")
+JWT_SECRET = os.getenv("JWT_SECRET", "f5-jwt-demo-secret")
+JWT_ISSUER = os.getenv("JWT_ISSUER", "custom-api-auth-demo")
 HOST = os.getenv("API_HOST", "0.0.0.0")
 PORT = int(os.getenv("API_PORT", "8080"))
 
@@ -103,7 +109,17 @@ class DemoApiHandler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "endpoint not found"})
             return
 
-        if not self._is_authenticated():
+        if self._uses_jwt_auth(path):
+            if not self._is_jwt_authenticated():
+                self._send_json(
+                    401,
+                    {
+                        "error": "jwt authentication failed",
+                        "expectedHeader": "Authorization: Bearer <jwt>",
+                    },
+                )
+                return
+        elif not self._is_custom_authenticated():
             self._send_json(
                 401,
                 {
@@ -205,10 +221,58 @@ class DemoApiHandler(BaseHTTPRequestHandler):
         if method == "DELETE" and len(segments) == 4 and segments[:3] == ["api", "v1", "sessions"]:
             return _ok({"sessionId": segments[3], "status": "revoked"})
 
+        if method == "GET" and path == "/api/v1/reports/sales-summary":
+            period = _first_query_value(query, "period") or "last-30-days"
+            return _ok(
+                {
+                    "report": {
+                        "name": "sales-summary",
+                        "period": period,
+                        "currency": "USD",
+                        "grossRevenue": 1634.4,
+                        "paidInvoices": 1,
+                        "openInvoices": 2,
+                    }
+                }
+            )
+
+        if method == "GET" and path == "/api/v1/security/audit-events":
+            severity = _first_query_value(query, "severity") or "high"
+            return _ok(
+                {
+                    "events": [
+                        {
+                            "id": "evt-5001",
+                            "severity": severity,
+                            "action": "payment.authorized",
+                            "actor": "user-demo-1",
+                        },
+                        {
+                            "id": "evt-5002",
+                            "severity": severity,
+                            "action": "order.updated",
+                            "actor": "user-demo-2",
+                        },
+                    ],
+                    "count": 2,
+                }
+            )
+
         return _not_found("endpoint not found")
 
-    def _is_authenticated(self):
+    def _uses_jwt_auth(self, path):
+        return path.startswith("/api/v1/reports/") or path.startswith("/api/v1/security/")
+
+    def _is_custom_authenticated(self):
         return self.headers.get(AUTH_HEADER_NAME) == AUTH_HEADER_VALUE
+
+    def _is_jwt_authenticated(self):
+        authorization = self.headers.get("Authorization", "")
+        if not authorization.startswith("Bearer "):
+            return False
+
+        token = authorization.removeprefix("Bearer ").strip()
+        return _verify_jwt(token)
 
     def _read_json_body(self):
         content_length = int(self.headers.get("Content-Length", "0") or "0")
@@ -249,6 +313,26 @@ class DemoApiHandler(BaseHTTPRequestHandler):
                 "/api/v1/sessions/{sessionId}": {
                     "delete": {"summary": "Revoke session"}
                 },
+                "/api/v1/reports/sales-summary": {
+                    "get": {"summary": "Get sales summary report"}
+                },
+                "/api/v1/security/audit-events": {
+                    "get": {"summary": "List security audit events"}
+                },
+            },
+            "components": {
+                "securitySchemes": {
+                    "CustomHeaderAuth": {
+                        "type": "apiKey",
+                        "in": "header",
+                        "name": AUTH_HEADER_NAME,
+                    },
+                    "JwtBearerAuth": {
+                        "type": "http",
+                        "scheme": "bearer",
+                        "bearerFormat": "JWT",
+                    },
+                }
             },
         }
 
@@ -268,6 +352,42 @@ def _created(body):
 
 def _not_found(message):
     return {"status": 404, "body": {"error": message}}
+
+
+def _verify_jwt(token):
+    parts = token.split(".")
+    if len(parts) != 3:
+        return False
+
+    signing_input = f"{parts[0]}.{parts[1]}".encode("utf-8")
+    expected_signature = _base64url_encode(
+        hmac.new(JWT_SECRET.encode("utf-8"), signing_input, hashlib.sha256).digest()
+    )
+    if not hmac.compare_digest(parts[2], expected_signature):
+        return False
+
+    try:
+        header = json.loads(_base64url_decode(parts[0]))
+        payload = json.loads(_base64url_decode(parts[1]))
+    except (ValueError, json.JSONDecodeError):
+        return False
+
+    if header.get("alg") != "HS256" or header.get("typ") != "JWT":
+        return False
+    if payload.get("iss") != JWT_ISSUER:
+        return False
+    if payload.get("exp", 0) < int(time.time()):
+        return False
+    return True
+
+
+def _base64url_encode(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _base64url_decode(data):
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(f"{data}{padding}".encode("ascii"))
 
 
 def run():
