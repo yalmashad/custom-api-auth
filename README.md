@@ -55,6 +55,19 @@ Health endpoint:
 GET /health
 ```
 
+## OpenAPI
+
+Upload this file to an API discovery engine:
+
+```text
+openapi.json
+```
+
+The OpenAPI document includes both authentication schemes:
+
+- `CustomHeaderAuth`: `X-Demo-Authenticated`
+- `JwtBearerAuth`: `Authorization: Bearer <jwt>`
+
 ## Run The API
 
 ```bash

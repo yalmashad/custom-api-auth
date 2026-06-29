@@ -7,6 +7,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from demo_api.openapi_spec import OPENAPI_DOCUMENT
+
 
 AUTH_HEADER_NAME = os.getenv("AUTH_HEADER_NAME", "X-Demo-Authenticated")
 AUTH_HEADER_VALUE = os.getenv("AUTH_HEADER_VALUE", "f5-poc-secret")
@@ -294,47 +296,7 @@ class DemoApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(response)
 
     def _openapi_document(self):
-        return {
-            "openapi": "3.0.3",
-            "info": {"title": "Custom API Authentication Demo", "version": "1.0.0"},
-            "paths": {
-                "/api/v1/customers": {"get": {"summary": "List customers"}},
-                "/api/v1/customers/{customerId}": {"get": {"summary": "Get customer"}},
-                "/api/v1/customers/{customerId}/orders": {
-                    "get": {"summary": "List customer orders"}
-                },
-                "/api/v1/orders/{orderId}": {
-                    "get": {"summary": "Get order"},
-                    "put": {"summary": "Update order"},
-                },
-                "/api/v1/orders": {"post": {"summary": "Create order"}},
-                "/api/v1/invoices": {"get": {"summary": "List invoices"}},
-                "/api/v1/payments": {"post": {"summary": "Create payment"}},
-                "/api/v1/sessions/{sessionId}": {
-                    "delete": {"summary": "Revoke session"}
-                },
-                "/api/v1/reports/sales-summary": {
-                    "get": {"summary": "Get sales summary report"}
-                },
-                "/api/v1/security/audit-events": {
-                    "get": {"summary": "List security audit events"}
-                },
-            },
-            "components": {
-                "securitySchemes": {
-                    "CustomHeaderAuth": {
-                        "type": "apiKey",
-                        "in": "header",
-                        "name": AUTH_HEADER_NAME,
-                    },
-                    "JwtBearerAuth": {
-                        "type": "http",
-                        "scheme": "bearer",
-                        "bearerFormat": "JWT",
-                    },
-                }
-            },
-        }
+        return OPENAPI_DOCUMENT
 
 
 def _first_query_value(query, key):
