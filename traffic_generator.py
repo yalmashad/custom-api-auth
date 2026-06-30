@@ -2,12 +2,13 @@ import argparse
 import base64
 import hashlib
 import hmac
+import http.client
 import itertools
 import json
 import os
 import random
 import time
-from urllib import error, request
+from urllib.parse import urlsplit
 
 
 DEFAULT_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080")
@@ -110,21 +111,24 @@ def send_request(base_url, auth_scheme, method, path, body, auth_mode, timeout):
         payload = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
 
-    api_request = request.Request(
-        f"{base_url.rstrip('/')}{path}",
-        data=payload,
-        headers=headers,
-        method=method,
+    url = urlsplit(f"{base_url.rstrip('/')}{path}")
+    request_target = url.path or "/"
+    if url.query:
+        request_target = f"{request_target}?{url.query}"
+
+    connection_class = (
+        http.client.HTTPSConnection if url.scheme == "https" else http.client.HTTPConnection
     )
+    connection = connection_class(url.hostname, url.port, timeout=timeout)
 
     started = time.monotonic()
     try:
-        with request.urlopen(api_request, timeout=timeout) as response:
-            response.read()
-            status = response.status
-    except error.HTTPError as exc:
-        exc.read()
-        status = exc.code
+        connection.request(method, request_target, body=payload, headers=headers)
+        response = connection.getresponse()
+        response.read()
+        status = response.status
+    finally:
+        connection.close()
     latency_ms = round((time.monotonic() - started) * 1000, 2)
 
     return {
